@@ -25,6 +25,7 @@ import static org.mockito.Mockito.mock;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,6 +42,7 @@ import com.rabbitmq.client.AMQP.BasicProperties;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.impl.AMQImpl;
 
 /**
  * @author Gary Russell
@@ -322,6 +324,64 @@ public class RabbitTemplateHeaderTests {
 
 		assertThat(reply.getMessageProperties().getReplyTo()).isEqualTo(replyTo1);
 		assertThat(reply.getMessageProperties().getCorrelationId()).isEqualTo("a");
+	}
+
+	@Test
+	public void testFixedReplyQueueCorrelationIdsAreRandom() throws Exception {
+		Channel mockChannel = mock(Channel.class);
+		SingleConnectionFactory connectionFactory = connectionFactoryFor(mockChannel);
+		RabbitTemplate template1 = new RabbitTemplate(connectionFactory);
+		RabbitTemplate template2 = new RabbitTemplate(connectionFactory);
+		List<String> correlationIds = new ArrayList<>();
+		for (RabbitTemplate template : List.of(template1, template2)) {
+			template.setReplyAddress("fixed.replyTo");
+			template.expectedQueueNames();
+			willAnswer(invocation -> {
+				BasicProperties basicProps = invocation.getArgument(3);
+				correlationIds.add(basicProps.getCorrelationId());
+				MessageProperties springProps = new DefaultMessagePropertiesConverter()
+						.toMessageProperties(basicProps, null, "UTF-8");
+				template.onMessage(new Message("reply".getBytes(), springProps), mock(Channel.class));
+				return null;
+			}).given(mockChannel).basicPublish(any(String.class), any(String.class), Mockito.anyBoolean(),
+					any(BasicProperties.class), any(byte[].class));
+			assertThat(template.sendAndReceive(new Message("one".getBytes(), new MessageProperties()))).isNotNull();
+			assertThat(template.sendAndReceive(new Message("two".getBytes(), new MessageProperties()))).isNotNull();
+		}
+		assertThat(correlationIds).hasSize(4).doesNotHaveDuplicates();
+		correlationIds.forEach(UUID::fromString);
+	}
+
+	@Test
+	public void testTemporaryReplyQueueReturnCorrelationIsRandom() throws Exception {
+		Channel mockChannel = mock(Channel.class);
+		given(mockChannel.queueDeclare()).willReturn(new AMQImpl.Queue.DeclareOk("temp.replyTo", 0, 0));
+		RabbitTemplate template = new RabbitTemplate(connectionFactoryFor(mockChannel));
+		template.setUseTemporaryReplyQueues(true);
+		template.setMandatory(true);
+		template.setReplyTimeout(1);
+		AtomicReference<Object> returnCorrelation = new AtomicReference<>();
+		willAnswer(invocation -> {
+			BasicProperties basicProps = invocation.getArgument(3);
+			returnCorrelation.set(basicProps.getHeaders().get("spring_request_return_correlation"));
+			return null;
+		}).given(mockChannel).basicPublish(any(String.class), any(String.class), Mockito.anyBoolean(),
+				any(BasicProperties.class), any(byte[].class));
+		assertThat(template.sendAndReceive(new Message("one".getBytes(), new MessageProperties()))).isNull();
+		assertThat(returnCorrelation.get()).isNotNull();
+		UUID.fromString(returnCorrelation.get().toString());
+	}
+
+	private SingleConnectionFactory connectionFactoryFor(Channel channel) throws Exception {
+		ConnectionFactory mockConnectionFactory = mock(ConnectionFactory.class);
+		Connection mockConnection = mock(Connection.class);
+		given(mockConnectionFactory.newConnection(any(ExecutorService.class), anyString())).willReturn(mockConnection);
+		given(mockConnection.isOpen()).willReturn(true);
+		given(mockConnection.createChannel()).willReturn(channel);
+		given(channel.isOpen()).willReturn(true);
+		SingleConnectionFactory connectionFactory = new SingleConnectionFactory(mockConnectionFactory);
+		connectionFactory.setExecutor(mock(ExecutorService.class));
+		return connectionFactory;
 	}
 
 }
