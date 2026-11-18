@@ -240,6 +240,15 @@ public class AmqpAppenderTests {
 			.withFailMessage("Unrecognized SaslConfig: junk");
 	}
 
+	@Test
+	public void testAmqpsUriEnablesSsl() throws URISyntaxException {
+		RabbitConnectionFactoryBean bean = mock(RabbitConnectionFactoryBean.class);
+		AmqpAppender appender = new AmqpAppender();
+		appender.setUri(new URI("amqps://user:password@rabbitmq.com/vhost"));
+		appender.configureRabbitConnectionFactory(bean);
+		verify(bean).setUseSSL(true);
+		verify(bean).setEnableHostnameVerification(true);
+	}
 
 	private void verifyDefaultHostProperties(RabbitConnectionFactoryBean bean) {
 		verify(bean, never()).setHost("localhost");

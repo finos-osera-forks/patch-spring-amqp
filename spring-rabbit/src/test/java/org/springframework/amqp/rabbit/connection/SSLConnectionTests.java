@@ -42,6 +42,7 @@ import org.springframework.core.io.ClassPathResource;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.SslContextFactory;
 import com.rabbitmq.client.impl.CredentialsProvider;
 import com.rabbitmq.client.impl.CredentialsRefreshService;
 
@@ -275,5 +276,39 @@ public class SSLConnectionTests {
 				.isSameAs(service);
 	}
 
+	@Test
+	public void sslUriEnablesSslAsWell() throws Exception {
+		RabbitConnectionFactoryBean fb = new RabbitConnectionFactoryBean();
+		fb.setUri("amqps://guest:guest@localhost:5671");
+		fb.afterPropertiesSet();
+		ConnectionFactory connectionFactory = fb.getObject();
+		assertThat(connectionFactory.isSSL()).isTrue();
+		SslContextFactory sslContextFactory =
+				(SslContextFactory) TestUtils.getPropertyValue(connectionFactory, "sslContextFactory");
+		SSLContext sslContext = sslContextFactory.create("test");
+		assertThat(sslContext.getProtocol()).isEqualTo("TLSv1.2");
+	}
+
+	@Test
+	public void sslUriDoesNotTrustEverything() throws Exception {
+		RabbitConnectionFactoryBean fb = new RabbitConnectionFactoryBean();
+		ConnectionFactory rabbitCf = spy(TestUtils.getPropertyValue(fb, "connectionFactory", ConnectionFactory.class));
+		new DirectFieldAccessor(fb).setPropertyValue("connectionFactory", rabbitCf);
+		fb.setUri("amqps://guest:guest@localhost:5671");
+		fb.afterPropertiesSet();
+		fb.getObject();
+		verify(rabbitCf, never()).useSslProtocol();
+		verify(rabbitCf, never()).useSslProtocol(Mockito.anyString());
+		verify(rabbitCf).useSslProtocol(Mockito.any(SSLContext.class));
+		verify(rabbitCf).enableHostnameVerification();
+	}
+
+	@Test
+	public void plainUriLeavesSslOff() throws Exception {
+		RabbitConnectionFactoryBean fb = new RabbitConnectionFactoryBean();
+		fb.setUri("amqp://guest:guest@localhost:5672");
+		fb.afterPropertiesSet();
+		assertThat(fb.getObject().isSSL()).isFalse();
+	}
 
 }
