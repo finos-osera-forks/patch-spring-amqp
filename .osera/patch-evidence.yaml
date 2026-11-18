@@ -1,7 +1,7 @@
 # Licensed under the Apache License, Version 2.0: https://www.apache.org/licenses/LICENSE-2.0
 schema: osera-patch-evidence/0.1.0
 producer: moderne
-release: 2.4.17.1-osera-00001
+release: 2.4.17.1-osera-00002
 baseline: v2.4.17+patch.baseline
 fixes:
   - cve: CVE-2026-41701
@@ -11,12 +11,20 @@ fixes:
     basis: adapted
     artifacts:
       - org.springframework.amqp:spring-rabbit
-    note: New in this release; ported onto 2.4.17; fixed at 2.4.17.1-backpatch-00001 (backpatch-spring-amqp@9a00b22).
+    note: Carried from 2.4.17.1-backpatch-00001; ported onto 2.4.17; fixed at 2.4.17.1-backpatch-00001 (backpatch-spring-amqp@9a00b22).
+  - cve: CVE-2026-41714
+    upstream_fix_url: https://github.com/spring-projects/spring-amqp/commit/690da5c2e614298728a955f52c75039969a6c3c7
+    advisory_url: https://nvd.nist.gov/vuln/detail/CVE-2026-41714
+    patch_commit_url: https://github.com/moderne-backpatch-alliance/backpatch-spring-amqp/commit/f35bed4
+    basis: adapted
+    artifacts:
+      - org.springframework.amqp:spring-rabbit
+    note: New in this release; ported onto 2.4.17; fixed at 2.4.17.1-backpatch-00002 (backpatch-spring-amqp@f35bed4).
 tests:
-  commit: 77a47c06eceb82aec893511c0c9be96f8b9a9dbd
+  commit: 9ad98221b4ca9c2c518b4efa4b6f1176c8ddd680
   command: gradlew :spring-rabbit:test --continue
   runtime: openjdk version 11.0.20 2023-07-18 LTS, Gradle wrapper
-  report: spring-rabbit-2.4.17.1-osera-00001-tests.zip
-  report_sha256: 02a7bed9cdc0d9e3c068fd4ceaad3b49ce20cd3305583ca288ccb37f3ea0da06
+  report: spring-rabbit-2.4.17.1-osera-00002-tests.zip
+  report_sha256: 5c8857c1ccf73cb4c1f4dbe325e3cc4443f3411b9951d1904876a850b04d4405
   result: pass
-  note: 2391 tests at the patch commit, 63 of them skipped by the suite, 0 failed, 0 errors.
+  note: 2397 tests at the patch commit, 63 of them skipped by the suite, 0 failed, 0 errors.
